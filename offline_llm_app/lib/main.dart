@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/conversation_provider.dart';
 import 'services/model_manager.dart';
 import 'screens/chat_screen.dart';
 
@@ -32,7 +33,21 @@ class OfflineLLMApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => ChatProvider()..initialize(),
+          create: (_) => ConversationProvider()..initialize(),
+        ),
+        ChangeNotifierProxyProvider<ConversationProvider, ChatProvider>(
+          create: (context) {
+            final chatProvider = ChatProvider();
+            chatProvider.setConversationProvider(
+              context.read<ConversationProvider>(),
+            );
+            chatProvider.initialize();
+            return chatProvider;
+          },
+          update: (context, conversationProvider, chatProvider) {
+            chatProvider?.setConversationProvider(conversationProvider);
+            return chatProvider ?? ChatProvider();
+          },
         ),
       ],
       child: MaterialApp(

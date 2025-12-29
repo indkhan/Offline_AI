@@ -7,13 +7,14 @@ import 'package:flutter/foundation.dart';
 import '../models/chat_message.dart';
 import '../services/llama_service.dart';
 import '../services/model_manager.dart';
+import 'conversation_provider.dart';
 
 /// Provider for chat state and operations
 class ChatProvider extends ChangeNotifier {
   final LlamaService _llamaService = LlamaService.instance;
   final ModelManager _modelManager = ModelManager.instance;
+  ConversationProvider? _conversationProvider;
   
-  List<ChatMessage> _messages = [];
   bool _isGenerating = false;
   bool _isModelLoading = false;
   String? _currentModelId;
@@ -25,7 +26,7 @@ class ChatProvider extends ChangeNotifier {
   double _temperature = 0.7;
   double _topP = 0.9;
   
-  List<ChatMessage> get messages => List.unmodifiable(_messages);
+  List<ChatMessage> get messages => _conversationProvider?.messages ?? [];
   bool get isGenerating => _isGenerating;
   bool get isModelLoading => _isModelLoading;
   String? get currentModelId => _currentModelId;
@@ -35,6 +36,11 @@ class ChatProvider extends ChangeNotifier {
   int get maxTokens => _maxTokens;
   double get temperature => _temperature;
   double get topP => _topP;
+
+  /// Set the conversation provider
+  void setConversationProvider(ConversationProvider provider) {
+    _conversationProvider = provider;
+  }
 
   /// Initialize the provider
   Future<void> initialize() async {
@@ -110,7 +116,7 @@ class ChatProvider extends ChangeNotifier {
       role: MessageRole.user,
       content: content.trim(),
     );
-    _messages.add(userMessage);
+    await _conversationProvider?.addMessage(userMessage);
     notifyListeners();
     
     // Create assistant message placeholder
@@ -119,7 +125,7 @@ class ChatProvider extends ChangeNotifier {
       content: '',
       isStreaming: true,
     );
-    _messages.add(assistantMessage);
+    await _conversationProvider?.addMessage(assistantMessage);
     _isGenerating = true;
     notifyListeners();
     
@@ -145,22 +151,16 @@ class ChatProvider extends ChangeNotifier {
         onError: (error) {
           _error = error.toString();
           _isGenerating = false;
-          _updateLastMessage(buffer.toString(), isStreaming: false);
-          notifyListeners();
+          _updateLastMessage(buffer.toString(), isStreaming: false).then((_) => notifyListeners());
         },
         onDone: () {
           _isGenerating = false;
-          _updateLastMessage(buffer.toString(), isStreaming: false);
-          notifyListeners();
+          _updateLastMessage(buffer.toString(), isStreaming: false).then((_) => notifyListeners());
         },
       );
     } catch (e) {
       _error = e.toString();
       _isGenerating = false;
-      // Remove the empty assistant message on error
-      if (_messages.isNotEmpty && _messages.last.content.isEmpty) {
-        _messages.removeLast();
-      }
       notifyListeners();
     }
   }
@@ -172,27 +172,18 @@ class ChatProvider extends ChangeNotifier {
       _generationSubscription?.cancel();
       _generationSubscription = null;
       _isGenerating = false;
-      
-      // Mark the last message as not streaming
-      if (_messages.isNotEmpty && _messages.last.isStreaming) {
-        final lastMsg = _messages.last;
-        _messages[_messages.length - 1] = lastMsg.copyWith(isStreaming: false);
-      }
-      
       notifyListeners();
     }
   }
 
   /// Update the last message content
-  void _updateLastMessage(String content, {required bool isStreaming}) {
-    if (_messages.isEmpty) return;
+  Future<void> _updateLastMessage(String content, {required bool isStreaming}) async {
+    final messages = _conversationProvider?.messages ?? [];
+    if (messages.isEmpty) return;
     
-    final lastMsg = _messages.last;
+    final lastMsg = messages.last;
     if (lastMsg.role == MessageRole.assistant) {
-      _messages[_messages.length - 1] = lastMsg.copyWith(
-        content: content,
-        isStreaming: isStreaming,
-      );
+      await _conversationProvider?.updateMessage(lastMsg.id, content);
       notifyListeners();
     }
   }
@@ -200,6 +191,7 @@ class ChatProvider extends ChangeNotifier {
   /// Build the prompt from chat history
   String _buildPrompt() {
     final buffer = StringBuffer();
+    final messages = _conversationProvider?.messages ?? [];
     
     // Use appropriate chat template based on model
     if (_currentModelId?.contains('qwen') ?? false) {
@@ -207,7 +199,7 @@ class ChatProvider extends ChangeNotifier {
       buffer.writeln('<|im_start|>system');
       buffer.writeln('You are a helpful AI assistant.<|im_end|>');
       
-      for (final msg in _messages) {
+      for (final msg in messages) {
         if (msg.role == MessageRole.user) {
           buffer.writeln('<|im_start|>user');
           buffer.writeln('${msg.content}<|im_end|>');
@@ -221,7 +213,7 @@ class ChatProvider extends ChangeNotifier {
       // Gemma chat template
       buffer.writeln('<start_of_turn>user');
       
-      for (final msg in _messages) {
+      for (final msg in messages) {
         if (msg.role == MessageRole.user) {
           buffer.writeln('${msg.content}<end_of_turn>');
           buffer.writeln('<start_of_turn>model');
@@ -234,7 +226,7 @@ class ChatProvider extends ChangeNotifier {
       // Generic chat template
       buffer.writeln('### System: You are a helpful AI assistant.\n');
       
-      for (final msg in _messages) {
+      for (final msg in messages) {
         if (msg.role == MessageRole.user) {
           buffer.writeln('### User: ${msg.content}\n');
         } else if (msg.role == MessageRole.assistant && msg.content.isNotEmpty) {
@@ -248,8 +240,8 @@ class ChatProvider extends ChangeNotifier {
   }
 
   /// Clear chat history
-  void clearChat() {
-    _messages.clear();
+  Future<void> clearChat() async {
+    await _conversationProvider?.clearActiveConversation();
     _error = null;
     notifyListeners();
   }

@@ -5,8 +5,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
+import '../providers/conversation_provider.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_input.dart';
+import '../widgets/conversation_drawer.dart';
 import 'model_selection_screen.dart';
 import 'settings_screen.dart';
 
@@ -74,8 +76,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ChatProvider>(
-      builder: (context, chatProvider, child) {
+    return Consumer2<ChatProvider, ConversationProvider>(
+      builder: (context, chatProvider, conversationProvider, child) {
         // Auto-scroll when generating
         if (chatProvider.isGenerating) {
           _scrollToBottom();
@@ -83,7 +85,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          appBar: _buildAppBar(context, chatProvider),
+          appBar: _buildAppBar(context, chatProvider, conversationProvider),
+          drawer: const ConversationDrawer(),
           body: Column(
             children: [
               // Error banner
@@ -106,14 +109,27 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, ChatProvider chatProvider) {
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context,
+    ChatProvider chatProvider,
+    ConversationProvider conversationProvider,
+  ) {
     return AppBar(
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(Icons.menu),
+          tooltip: 'Chat History',
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
+      ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Offline LLM',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            conversationProvider.activeConversation?.title ?? 'New Chat',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             chatProvider.hasModel

@@ -43,6 +43,31 @@ class ChatMessage {
   
   bool get isUser => role == MessageRole.user;
   bool get isAssistant => role == MessageRole.assistant;
+
+  /// Convert to JSON for storage
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'role': role.name,
+      'content': content,
+      'timestamp': timestamp.toIso8601String(),
+      'isStreaming': isStreaming,
+    };
+  }
+
+  /// Create from JSON
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] as String,
+      role: MessageRole.values.firstWhere(
+        (e) => e.name == json['role'],
+        orElse: () => MessageRole.user,
+      ),
+      content: json['content'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      isStreaming: json['isStreaming'] as bool? ?? false,
+    );
+  }
 }
 
 /// A chat conversation
