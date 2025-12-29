@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/conversation_provider.dart';
+import 'providers/theme_provider.dart';
 import 'services/model_manager.dart';
+import 'config/app_theme.dart';
 import 'screens/chat_screen.dart';
 
 void main() async {
@@ -33,6 +35,9 @@ class OfflineLLMApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
+          create: (_) => ThemeProvider()..initialize(),
+        ),
+        ChangeNotifierProvider(
           create: (_) => ConversationProvider()..initialize(),
         ),
         ChangeNotifierProxyProvider<ConversationProvider, ChatProvider>(
@@ -50,38 +55,17 @@ class OfflineLLMApp extends StatelessWidget {
           },
         ),
       ],
-      child: MaterialApp(
-        title: 'Offline LLM',
-        debugShowCheckedModeBanner: false,
-        
-        // Light theme
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF10A37F), // ChatGPT green
-            brightness: Brightness.light,
-          ),
-          appBarTheme: const AppBarTheme(
-            centerTitle: false,
-            elevation: 0,
-          ),
-        ),
-        
-        // Dark theme
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF10A37F),
-            brightness: Brightness.dark,
-          ),
-          appBarTheme: const AppBarTheme(
-            centerTitle: false,
-            elevation: 0,
-          ),
-        ),
-        
-        themeMode: ThemeMode.system,
-        home: const ChatScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Offline LLM',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.materialThemeMode,
+            home: const ChatScreen(),
+          );
+        },
       ),
     );
   }

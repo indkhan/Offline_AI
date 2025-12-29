@@ -22,7 +22,9 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _textController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   bool _autoScroll = true;
+  bool _wasGenerating = false;
 
   @override
   void initState() {
@@ -38,6 +40,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _scrollController.dispose();
     _textController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -78,6 +81,12 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Consumer2<ChatProvider, ConversationProvider>(
       builder: (context, chatProvider, conversationProvider, child) {
+        // Auto-dismiss keyboard when AI starts generating
+        if (chatProvider.isGenerating && !_wasGenerating) {
+          _focusNode.unfocus();
+        }
+        _wasGenerating = chatProvider.isGenerating;
+        
         // Auto-scroll when generating
         if (chatProvider.isGenerating) {
           _scrollToBottom();
@@ -292,7 +301,8 @@ class _ChatScreenState extends State<ChatScreen> {
               Expanded(
                 child: ChatInput(
                   controller: _textController,
-                  enabled: chatProvider.hasModel && !chatProvider.isGenerating,
+                  focusNode: _focusNode,
+                  enabled: chatProvider.hasModel,
                   onSubmitted: (_) => _sendMessage(chatProvider),
                   onChanged: (_) => setState(() {}),
                 ),

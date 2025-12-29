@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 class ChatInput extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final bool enabled;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
@@ -14,6 +15,7 @@ class ChatInput extends StatelessWidget {
   const ChatInput({
     super.key,
     required this.controller,
+    this.focusNode,
     this.enabled = true,
     this.onSubmitted,
     this.onChanged,
@@ -41,6 +43,7 @@ class ChatInput extends StatelessWidget {
         },
         child: TextField(
           controller: controller,
+          focusNode: focusNode,
           enabled: enabled,
           maxLines: null,
           textInputAction: TextInputAction.newline,
