@@ -26,6 +26,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Rebuild send button state when text changes
+    _textController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -274,6 +278,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   controller: _textController,
                   enabled: chatProvider.hasModel && !chatProvider.isGenerating,
                   onSubmitted: (_) => _sendMessage(chatProvider),
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
               const SizedBox(width: 8),

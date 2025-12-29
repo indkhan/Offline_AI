@@ -9,12 +9,14 @@ class ChatInput extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
 
   const ChatInput({
     super.key,
     required this.controller,
     this.enabled = true,
     this.onSubmitted,
+    this.onChanged,
   });
 
   @override
@@ -57,10 +59,7 @@ class ChatInput extends StatelessWidget {
               vertical: 14,
             ),
           ),
-          onChanged: (_) {
-            // Trigger rebuild for send button state
-            (context as Element).markNeedsBuild();
-          },
+          onChanged: onChanged,
         ),
       ),
     );
