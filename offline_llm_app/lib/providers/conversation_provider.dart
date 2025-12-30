@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../models/conversation.dart';
 import '../models/chat_message.dart';
 import '../services/conversation_storage.dart';
+import '../utils/lru_cache.dart';
 
 // Top-level function for compute() - search in messages
 bool _searchInMessages(Map<String, dynamic> params) {
@@ -24,6 +25,13 @@ class ConversationProvider with ChangeNotifier {
   List<ChatMessage> _messages = [];
   bool _isLoading = false;
   bool _initialized = false;
+
+  // LRU cache for instant chat switching (keep last 5 chats in memory)
+  final LRUCache<String, List<ChatMessage>> _chatCache = LRUCache(5);
+  
+  // Pending persistence queue
+  final List<ChatMessage> _pendingPersist = [];
+  Timer? _persistTimer;
 
   // Search state
   String _searchQuery = '';
@@ -115,7 +123,7 @@ class ConversationProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Switch to a different conversation
+  /// INSTANT: Switch to conversation using LRU cache
   Future<void> switchConversation(String conversationId) async {
     await ensureConversationsLoaded();
     
@@ -125,9 +133,24 @@ class ConversationProvider with ChangeNotifier {
     );
 
     _activeConversation = conversation;
-    _messages = await _storage.loadMessages(conversationId);
-    await _storage.setActiveConversationId(conversationId);
-    notifyListeners();
+    
+    // Check cache first - INSTANT!
+    if (_chatCache.contains(conversationId)) {
+      _messages = _chatCache.get(conversationId)!;
+      notifyListeners(); // Immediate render from cache
+      
+      // Save active ID in background
+      _storage.setActiveConversationId(conversationId);
+    } else {
+      // Load from storage (only if not cached)
+      _messages = await _storage.loadMessages(conversationId);
+      
+      // Add to cache for next time
+      _chatCache.put(conversationId, _messages);
+      
+      await _storage.setActiveConversationId(conversationId);
+      notifyListeners();
+    }
   }
 
   /// Add a message to the active conversation
@@ -166,16 +189,46 @@ class ConversationProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Update a message in the active conversation
-  Future<void> updateMessage(String messageId, String content) async {
-    if (_activeConversation == null) return;
-
+  /// OPTIMISTIC: Add message to in-memory state immediately (no await)
+  void addMessageOptimistic(ChatMessage message) {
+    _messages.add(message);
+    notifyListeners(); // Immediate UI update
+    
+    // Update conversation metadata
+    if (_activeConversation != null) {
+      _activeConversation = _activeConversation!.copyWith(
+        updatedAt: DateTime.now(),
+        messageCount: _messages.length,
+      );
+      
+      // Auto-update title from first user message
+      if (_messages.length == 1 && message.role == MessageRole.user) {
+        final title = message.content.length > 50
+            ? '${message.content.substring(0, 50)}...'
+            : message.content;
+        _activeConversation = _activeConversation!.copyWith(title: title);
+      }
+    }
+  }
+  
+  /// OPTIMISTIC: Update message in-memory immediately
+  void updateMessageOptimistic(String messageId, String newContent, {bool isStreaming = false}) {
     final index = _messages.indexWhere((m) => m.id == messageId);
     if (index != -1) {
-      _messages[index] = _messages[index].copyWith(content: content);
-      await _saveMessages();
-      notifyListeners();
+      _messages[index] = _messages[index].copyWith(
+        content: newContent,
+        isStreaming: isStreaming,
+      );
+      // Note: Do NOT call notifyListeners() here during streaming!
+      // The streaming notifier handles UI updates
     }
+  }
+  
+  /// Legacy: Update message with persistence
+  Future<void> updateMessage(String messageId, String newContent) async {
+    updateMessageOptimistic(messageId, newContent);
+    notifyListeners();
+    await _saveMessages();
   }
 
   /// Delete a conversation
@@ -349,11 +402,64 @@ class ConversationProvider with ChangeNotifier {
     notifyListeners();
   }
   
+  /// ASYNC: Persist messages without blocking
+  void persistMessagesAsync(List<ChatMessage> messages) {
+    _pendingPersist.addAll(messages);
+    
+    // Debounce persistence - batch writes
+    _persistTimer?.cancel();
+    _persistTimer = Timer(const Duration(milliseconds: 500), () {
+      _flushPendingPersistence();
+    });
+  }
+  
+  /// CHECKPOINT: Persist single message (for final generation)
+  void persistMessageCheckpoint(String messageId, String content) {
+    // Update in pending queue if exists
+    final pendingIndex = _pendingPersist.indexWhere((m) => m.id == messageId);
+    if (pendingIndex != -1) {
+      _pendingPersist[pendingIndex] = _pendingPersist[pendingIndex].copyWith(
+        content: content,
+        isStreaming: false,
+      );
+    }
+    
+    // Force flush immediately for checkpoint
+    _persistTimer?.cancel();
+    _flushPendingPersistence();
+  }
+  
+  /// Flush pending messages to storage
+  Future<void> _flushPendingPersistence() async {
+    if (_pendingPersist.isEmpty) return;
+    
+    // Update messages in storage
+    for (final msg in _pendingPersist) {
+      final index = _messages.indexWhere((m) => m.id == msg.id);
+      if (index != -1) {
+        _messages[index] = msg;
+      }
+    }
+    
+    _pendingPersist.clear();
+    
+    // Batch write to storage
+    await _saveMessages();
+    await _saveConversations();
+    
+    // Update cache
+    if (_activeConversation != null) {
+      _chatCache.put(_activeConversation!.id, List.from(_messages));
+    }
+  }
+  
   /// Dispose search resources
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _persistTimer?.cancel();
     _messageCache.clear();
+    _chatCache.clear();
     super.dispose();
   }
 

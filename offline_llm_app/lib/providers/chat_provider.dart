@@ -8,8 +8,13 @@ import '../models/chat_message.dart';
 import '../services/llama_service.dart';
 import '../services/model_manager.dart';
 import 'conversation_provider.dart';
+import 'streaming_message_notifier.dart';
 
 /// Provider for chat state and operations
+/// Optimized for extreme performance with:
+/// - Optimistic UI (no blocking on message insert)
+/// - Token buffering (30 FPS updates, not per-token)
+/// - Minimal rebuilds (only active message bubble)
 class ChatProvider extends ChangeNotifier {
   final LlamaService _llamaService = LlamaService.instance;
   final ModelManager _modelManager = ModelManager.instance;
@@ -20,6 +25,10 @@ class ChatProvider extends ChangeNotifier {
   String? _currentModelId;
   String? _error;
   StreamSubscription<String>? _generationSubscription;
+  
+  // Streaming message notifier - only this rebuilds during generation
+  StreamingMessageNotifier? _streamingNotifier;
+  String? _streamingMessageId;
   
   // Generation settings
   int _maxTokens = 512;
@@ -32,6 +41,8 @@ class ChatProvider extends ChangeNotifier {
   String? get currentModelId => _currentModelId;
   String? get error => _error;
   bool get hasModel => _currentModelId != null && _llamaService.isModelLoaded;
+  StreamingMessageNotifier? get streamingNotifier => _streamingNotifier;
+  String? get streamingMessageId => _streamingMessageId;
   
   int get maxTokens => _maxTokens;
   double get temperature => _temperature;
@@ -100,7 +111,8 @@ class ChatProvider extends ChangeNotifier {
   }
 
   /// Send a message and get a response
-  Future<void> sendMessage(String content) async {
+  /// OPTIMISTIC UI: Messages appear instantly, no blocking
+  void sendMessage(String content) {
     if (content.trim().isEmpty) return;
     if (!hasModel) {
       _error = 'No model loaded';
@@ -111,29 +123,42 @@ class ChatProvider extends ChangeNotifier {
     
     _error = null;
     
-    // Add user message
+    // OPTIMISTIC UI: Add user message immediately to in-memory state
     final userMessage = ChatMessage(
       role: MessageRole.user,
       content: content.trim(),
     );
-    await _conversationProvider?.addMessage(userMessage);
-    notifyListeners();
+    _conversationProvider?.addMessageOptimistic(userMessage);
+    notifyListeners(); // Trigger rebuild to show user message
     
-    // Create assistant message placeholder
+    // Create assistant message placeholder immediately
     final assistantMessage = ChatMessage(
       role: MessageRole.assistant,
       content: '',
       isStreaming: true,
     );
-    await _conversationProvider?.addMessage(assistantMessage);
-    _isGenerating = true;
-    notifyListeners();
+    _conversationProvider?.addMessageOptimistic(assistantMessage);
+    _streamingMessageId = assistantMessage.id;
     
+    // Create streaming notifier for this message
+    _streamingNotifier?.dispose();
+    _streamingNotifier = StreamingMessageNotifier();
+    
+    _isGenerating = true;
+    notifyListeners(); // Show assistant placeholder
+    
+    // Persist messages asynchronously (non-blocking)
+    _conversationProvider?.persistMessagesAsync([userMessage, assistantMessage]);
+    
+    // Start generation in background
+    _startGeneration();
+  }
+  
+  /// Start generation (separated for clarity)
+  void _startGeneration() {
     try {
-      // Build the prompt with chat history
       final prompt = _buildPrompt();
       
-      // Start generation
       final stream = _llamaService.generate(GenerationParams(
         prompt: prompt,
         maxTokens: _maxTokens,
@@ -141,21 +166,17 @@ class ChatProvider extends ChangeNotifier {
         topP: _topP,
       ));
       
-      final buffer = StringBuffer();
-      
       _generationSubscription = stream.listen(
         (token) {
-          buffer.write(token);
-          _updateLastMessage(buffer.toString(), isStreaming: true);
+          // TOKEN BUFFERING: Append to buffer, updates at 30 FPS
+          _streamingNotifier?.appendToken(token);
         },
         onError: (error) {
           _error = error.toString();
-          _isGenerating = false;
-          _updateLastMessage(buffer.toString(), isStreaming: false).then((_) => notifyListeners());
+          _finalizeGeneration();
         },
         onDone: () {
-          _isGenerating = false;
-          _updateLastMessage(buffer.toString(), isStreaming: false).then((_) => notifyListeners());
+          _finalizeGeneration();
         },
       );
     } catch (e) {
@@ -164,6 +185,28 @@ class ChatProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+  
+  /// Finalize generation and persist
+  void _finalizeGeneration() {
+    // Force final flush of buffer
+    _streamingNotifier?.finalize();
+    
+    final finalContent = _streamingNotifier?.value ?? '';
+    
+    // Update in-memory message
+    _conversationProvider?.updateMessageOptimistic(
+      _streamingMessageId!,
+      finalContent,
+      isStreaming: false,
+    );
+    
+    // Persist final message asynchronously (checkpoint)
+    _conversationProvider?.persistMessageCheckpoint(_streamingMessageId!, finalContent);
+    
+    _isGenerating = false;
+    _streamingMessageId = null;
+    notifyListeners(); // Update generation state only
+  }
 
   /// Stop the current generation
   void stopGeneration() {
@@ -171,21 +214,17 @@ class ChatProvider extends ChangeNotifier {
       _llamaService.cancelGeneration();
       _generationSubscription?.cancel();
       _generationSubscription = null;
-      _isGenerating = false;
-      notifyListeners();
+      
+      // Finalize partial generation
+      _finalizeGeneration();
     }
   }
-
-  /// Update the last message content
-  Future<void> _updateLastMessage(String content, {required bool isStreaming}) async {
-    final messages = _conversationProvider?.messages ?? [];
-    if (messages.isEmpty) return;
-    
-    final lastMsg = messages.last;
-    if (lastMsg.role == MessageRole.assistant) {
-      await _conversationProvider?.updateMessage(lastMsg.id, content);
-      notifyListeners();
-    }
+  
+  @override
+  void dispose() {
+    _streamingNotifier?.dispose();
+    _generationSubscription?.cancel();
+    super.dispose();
   }
 
   /// Build the prompt from chat history
@@ -258,11 +297,5 @@ class ChatProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _generationSubscription?.cancel();
-    super.dispose();
   }
 }

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/conversation_provider.dart';
 import '../widgets/chat_bubble.dart';
+import '../widgets/streaming_message_bubble.dart';
 import '../widgets/chat_input.dart';
 import '../widgets/conversation_drawer.dart';
 import 'model_selection_screen.dart';
@@ -271,10 +272,22 @@ class _ChatScreenState extends State<ChatScreen> {
       itemCount: chatProvider.messages.length,
       itemBuilder: (context, index) {
         final message = chatProvider.messages[index];
-        return ChatBubble(
-          message: message,
-          isStreaming: message.isStreaming && chatProvider.isGenerating,
-        );
+        
+        // OPTIMIZED: Only the streaming message rebuilds during generation
+        // All other messages are static and never rebuild
+        final isStreamingMessage = message.id == chatProvider.streamingMessageId &&
+                                   chatProvider.streamingNotifier != null;
+        
+        if (isStreamingMessage) {
+          // Use streaming bubble - updates at 30 FPS via ValueListenableBuilder
+          return StreamingMessageBubble(
+            message: message,
+            notifier: chatProvider.streamingNotifier!,
+          );
+        } else {
+          // Static message - never rebuilds
+          return ChatBubble(message: message);
+        }
       },
     );
   }

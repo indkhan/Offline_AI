@@ -15,6 +15,20 @@ A comprehensive guide to understanding the entire application architecture, feat
 
 ---
 
+## Current Architecture (single, up-to-date view)
+
+- **Optimistic messaging**: Messages render instantly in-memory; persistence happens asynchronously (no UI blocking).
+- **Streaming at 30 FPS**: Tokens buffer through `StreamingMessageNotifier`; only the streaming bubble rebuilds.
+- **Granular rebuilds**: Static `ChatBubble` for non-streaming; `StreamingMessageBubble` for the active stream only.
+- **Instant chat switching**: LRU cache keeps the 5 most recent chats in memory; renders from cache first, storage in background.
+- **Batched persistence**: Writes happen every 500ms and on final checkpoint—never per token.
+- **Background heavy work**: JSON encode/decode via `compute()`, inference on native threads/isolate.
+- **Progressive search**: Title search instant; content search in background with caching.
+
+> This document now reflects only the current implementation. Legacy/previous approaches have been removed.
+
+---
+
 ## Overview & Architecture
 
 ### What is This App?
@@ -708,6 +722,111 @@ User sees complete results
 - More results appear → Conversations with "hello" in messages
 - Total time: Title results in <10ms, complete results in <500ms
 - **UI stays 60fps** throughout entire search
+
+---
+
+### Feature 5: Extreme Performance Messaging (Optimistic UI + Streaming Buffer)
+
+**What**: Instant sends, smooth streaming, zero jank while generating.
+
+#### Core Rules Implemented
+1) **Optimistic UI** — render messages immediately, persist later (non-blocking)  
+2) **Token buffering** — update UI at ~30 FPS, not per token  
+3) **Minimal rebuilds** — only the streaming message bubble rebuilds  
+4) **Instant chat switching** — LRU cache keeps 5 recent chats in memory  
+5) **Batched persistence** — writes every 500ms, checkpoint on finish
+
+#### Optimistic Message Flow (`ChatProvider`)
+```dart
+void sendMessage(String content) {
+  // 1) Add user + assistant placeholder instantly (no await)
+  final user = ChatMessage(role: MessageRole.user, content: content.trim());
+  final ai   = ChatMessage(role: MessageRole.assistant, content: '', isStreaming: true);
+  conversationProvider.addMessageOptimistic(user);
+  conversationProvider.addMessageOptimistic(ai);
+
+  // 2) Streaming notifier buffers tokens at 30 FPS
+  _streamingNotifier = StreamingMessageNotifier();
+  _streamingMessageId = ai.id;
+
+  // 3) Persist later (non-blocking, batched)
+  conversationProvider.persistMessagesAsync([user, ai]);
+
+  // 4) Start generation (tokens streamed from isolate/native)
+  _startGeneration();
+}
+```
+
+#### Token Buffering (30 FPS)
+```dart
+_generationSubscription = stream.listen(
+  (token) => _streamingNotifier?.appendToken(token), // buffer only
+  onDone: _finalizeGeneration,
+);
+```
+
+#### Minimal Rebuild UI (`ChatScreen`)
+```dart
+final isStreaming = message.id == chatProvider.streamingMessageId;
+return isStreaming
+  ? StreamingMessageBubble(
+      message: message,
+      notifier: chatProvider.streamingNotifier!,
+    ) // Only this rebuilds at 30 FPS
+  : ChatBubble(message: message);       // Static, never rebuilds
+```
+
+#### LRU Cache for Instant Chat Switching (`ConversationProvider`)
+```dart
+final LRUCache<String, List<ChatMessage>> _chatCache = LRUCache(5);
+
+Future<void> switchConversation(String id) async {
+  await ensureConversationsLoaded();
+  _activeConversation = _conversations!.firstWhere((c) => c.id == id);
+
+  if (_chatCache.contains(id)) {
+    _messages = _chatCache.get(id)!;          // 0ms render
+    _storage.setActiveConversationId(id);     // async
+    notifyListeners();
+  } else {
+    _messages = await _storage.loadMessages(id);
+    _chatCache.put(id, _messages);
+    await _storage.setActiveConversationId(id);
+    notifyListeners();
+  }
+}
+```
+
+#### Batched Persistence (No Per-Token Writes)
+```dart
+final List<ChatMessage> _pendingPersist = [];
+Timer? _persistTimer;
+
+void persistMessagesAsync(List<ChatMessage> msgs) {
+  _pendingPersist.addAll(msgs);
+  _persistTimer?.cancel();
+  _persistTimer = Timer(const Duration(milliseconds: 500), _flushPendingPersistence);
+}
+
+void persistMessageCheckpoint(String id, String content) {
+  // Update pending, flush immediately on generation end
+  _persistTimer?.cancel();
+  _flushPendingPersistence();
+}
+```
+
+#### Why This Is Fast
+- **Zero blocking**: UI thread never waits for storage or inference.
+- **Controlled updates**: 30 FPS flush avoids per-token rebuilds.
+- **Granular rebuild**: Only one widget rebuilds during streaming.
+- **Hot cache**: Recent chats in memory → instant switching.
+- **Batched IO**: Disk writes at most every 500ms + final checkpoint.
+
+#### Expected UX
+- Typing / send: **<1ms** (instant)
+- Streaming: **smooth**, no jank, scrolling stays 60fps
+- Chat switch (cached): **0ms**; first load: 100–300ms then cached
+- Disk IO: **never blocks** UI; no per-token writes
 
 ---
 
