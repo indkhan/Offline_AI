@@ -10,40 +10,70 @@ import '../services/conversation_storage.dart';
 class ConversationProvider with ChangeNotifier {
   final ConversationStorage _storage = ConversationStorage();
   
-  List<Conversation> _conversations = [];
+  List<Conversation>? _conversations; // Nullable - lazy load
   Conversation? _activeConversation;
   List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  bool _initialized = false;
 
-  List<Conversation> get conversations => _conversations;
+  List<Conversation> get conversations => _conversations ?? [];
   Conversation? get activeConversation => _activeConversation;
   List<ChatMessage> get messages => _messages;
   bool get isLoading => _isLoading;
   bool get hasActiveConversation => _activeConversation != null;
 
-  /// Initialize and load conversations from storage
+  /// Initialize - lazy load, only create new conversation
   Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
+    
+    // Create a default conversation without loading from storage
+    // Storage will be loaded only when drawer is opened
+    _activeConversation = _createNewConversation();
+    _messages = [];
+    
+    // Load active conversation ID in background without blocking
+    _loadActiveConversationInBackground();
+  }
+
+  /// Load conversations and active conversation in background
+  Future<void> _loadActiveConversationInBackground() async {
+    try {
+      final activeId = await _storage.getActiveConversationId();
+      if (activeId != null && _conversations == null) {
+        // Only load if we don't have conversations yet
+        await ensureConversationsLoaded();
+        final active = _conversations?.firstWhere(
+          (c) => c.id == activeId,
+          orElse: () => _activeConversation!,
+        );
+        if (active != null && active.id != _activeConversation?.id) {
+          await switchConversation(active.id);
+        }
+      }
+    } catch (e) {
+      // Silent fail - keep using default conversation
+    }
+  }
+
+  /// Ensure conversations are loaded (called when drawer opens)
+  Future<void> ensureConversationsLoaded() async {
+    if (_conversations != null) return; // Already loaded
+    
     _isLoading = true;
     notifyListeners();
 
     try {
       _conversations = await _storage.loadConversations();
-      _conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-
-      final activeId = await _storage.getActiveConversationId();
-      if (activeId != null) {
-        final active = _conversations.firstWhere(
-          (c) => c.id == activeId,
-          orElse: () => _conversations.isNotEmpty ? _conversations.first : _createNewConversation(),
-        );
-        await switchConversation(active.id);
-      } else if (_conversations.isEmpty) {
-        await createNewConversation();
-      } else {
-        await switchConversation(_conversations.first.id);
+      _conversations!.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      
+      // Add current active conversation if not in list
+      if (_activeConversation != null && 
+          !_conversations!.any((c) => c.id == _activeConversation!.id)) {
+        _conversations!.insert(0, _activeConversation!);
       }
     } catch (e) {
-      await createNewConversation();
+      _conversations = [_activeConversation ?? _createNewConversation()];
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -53,7 +83,8 @@ class ConversationProvider with ChangeNotifier {
   /// Create a new conversation
   Future<void> createNewConversation() async {
     final newConversation = _createNewConversation();
-    _conversations.insert(0, newConversation);
+    _conversations ??= [];
+    _conversations!.insert(0, newConversation);
     _activeConversation = newConversation;
     _messages = [];
     
@@ -64,7 +95,9 @@ class ConversationProvider with ChangeNotifier {
 
   /// Switch to a different conversation
   Future<void> switchConversation(String conversationId) async {
-    final conversation = _conversations.firstWhere(
+    await ensureConversationsLoaded();
+    
+    final conversation = _conversations!.firstWhere(
       (c) => c.id == conversationId,
       orElse: () => _createNewConversation(),
     );
@@ -94,13 +127,15 @@ class ConversationProvider with ChangeNotifier {
     );
 
     // Update in list
-    final index = _conversations.indexWhere((c) => c.id == _activeConversation!.id);
-    if (index != -1) {
-      _conversations[index] = _activeConversation!;
-      // Move to top
-      if (index != 0) {
-        _conversations.removeAt(index);
-        _conversations.insert(0, _activeConversation!);
+    if (_conversations != null) {
+      final index = _conversations!.indexWhere((c) => c.id == _activeConversation!.id);
+      if (index != -1) {
+        _conversations![index] = _activeConversation!;
+        // Move to top
+        if (index != 0) {
+          _conversations!.removeAt(index);
+          _conversations!.insert(0, _activeConversation!);
+        }
       }
     }
 
@@ -123,14 +158,14 @@ class ConversationProvider with ChangeNotifier {
 
   /// Delete a conversation
   Future<void> deleteConversation(String conversationId) async {
-    _conversations.removeWhere((c) => c.id == conversationId);
+    _conversations?.removeWhere((c) => c.id == conversationId);
     await _storage.deleteConversation(conversationId);
     await _saveConversations();
 
     // If deleted conversation was active, switch to another
     if (_activeConversation?.id == conversationId) {
-      if (_conversations.isNotEmpty) {
-        await switchConversation(_conversations.first.id);
+      if (_conversations?.isNotEmpty ?? false) {
+        await switchConversation(_conversations!.first.id);
       } else {
         await createNewConversation();
       }
@@ -141,15 +176,16 @@ class ConversationProvider with ChangeNotifier {
 
   /// Rename a conversation
   Future<void> renameConversation(String conversationId, String newTitle) async {
-    final index = _conversations.indexWhere((c) => c.id == conversationId);
+    if (_conversations == null) return;
+    final index = _conversations!.indexWhere((c) => c.id == conversationId);
     if (index != -1) {
-      _conversations[index] = _conversations[index].copyWith(
+      _conversations![index] = _conversations![index].copyWith(
         title: newTitle,
         updatedAt: DateTime.now(),
       );
       
       if (_activeConversation?.id == conversationId) {
-        _activeConversation = _conversations[index];
+        _activeConversation = _conversations![index];
       }
 
       await _saveConversations();
@@ -167,9 +203,11 @@ class ConversationProvider with ChangeNotifier {
       updatedAt: DateTime.now(),
     );
 
-    final index = _conversations.indexWhere((c) => c.id == _activeConversation!.id);
-    if (index != -1) {
-      _conversations[index] = _activeConversation!;
+    if (_conversations != null) {
+      final index = _conversations!.indexWhere((c) => c.id == _activeConversation!.id);
+      if (index != -1) {
+        _conversations![index] = _activeConversation!;
+      }
     }
 
     await _saveMessages();
@@ -179,7 +217,9 @@ class ConversationProvider with ChangeNotifier {
 
   /// Save conversations metadata
   Future<void> _saveConversations() async {
-    await _storage.saveConversations(_conversations);
+    if (_conversations != null) {
+      await _storage.saveConversations(_conversations!);
+    }
   }
 
   /// Save messages for active conversation

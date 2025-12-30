@@ -30,10 +30,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    // Rebuild send button state when text changes
-    _textController.addListener(() {
-      if (mounted) setState(() {});
-    });
+    // Listen to text changes without rebuilding entire screen
+    // Send button will use ValueListenableBuilder instead
   }
 
   @override
@@ -304,11 +302,15 @@ class _ChatScreenState extends State<ChatScreen> {
                   focusNode: _focusNode,
                   enabled: chatProvider.hasModel,
                   onSubmitted: (_) => _sendMessage(chatProvider),
-                  onChanged: (_) => setState(() {}),
                 ),
               ),
               const SizedBox(width: 8),
-              _buildSendButton(context, chatProvider),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _textController,
+                builder: (context, value, child) {
+                  return _buildSendButton(context, chatProvider, value.text);
+                },
+              ),
             ],
           ),
         ),
@@ -316,7 +318,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildSendButton(BuildContext context, ChatProvider chatProvider) {
+  Widget _buildSendButton(BuildContext context, ChatProvider chatProvider, String text) {
     if (chatProvider.isGenerating) {
       // Stop button when generating
       return Container(
@@ -335,8 +337,8 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    // Send button
-    final canSend = chatProvider.hasModel && _textController.text.trim().isNotEmpty;
+    // Send button - use passed text parameter instead of controller
+    final canSend = chatProvider.hasModel && text.trim().isNotEmpty;
     
     return Container(
       width: 48,

@@ -15,14 +15,14 @@ import 'screens/chat_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Lock to portrait mode for better UX
-  await SystemChrome.setPreferredOrientations([
+  // Lock to portrait mode for better UX (non-blocking)
+  SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
   
-  // Initialize model manager
-  await ModelManager.instance.initialize();
+  // Initialize model manager in background (don't await)
+  ModelManager.instance.initialize();
   
   runApp(const OfflineLLMApp());
 }
@@ -35,10 +35,20 @@ class OfflineLLMApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => ThemeProvider()..initialize(),
+          create: (_) {
+            final provider = ThemeProvider();
+            // Initialize in background, don't block creation
+            provider.initialize();
+            return provider;
+          },
         ),
         ChangeNotifierProvider(
-          create: (_) => ConversationProvider()..initialize(),
+          create: (_) {
+            final provider = ConversationProvider();
+            // Initialize lazily on first access
+            // Don't load conversations until drawer is opened
+            return provider;
+          },
         ),
         ChangeNotifierProxyProvider<ConversationProvider, ChatProvider>(
           create: (context) {
@@ -46,6 +56,7 @@ class OfflineLLMApp extends StatelessWidget {
             chatProvider.setConversationProvider(
               context.read<ConversationProvider>(),
             );
+            // Initialize in background
             chatProvider.initialize();
             return chatProvider;
           },

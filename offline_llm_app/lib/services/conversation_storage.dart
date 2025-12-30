@@ -4,10 +4,32 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/conversation.dart';
 import '../models/chat_message.dart';
+
+// Isolate functions for JSON parsing
+List<Conversation> _parseConversations(String jsonString) {
+  final List<dynamic> jsonList = json.decode(jsonString);
+  return jsonList.map((json) => Conversation.fromJson(json)).toList();
+}
+
+List<ChatMessage> _parseMessages(String jsonString) {
+  final List<dynamic> jsonList = json.decode(jsonString);
+  return jsonList.map((json) => ChatMessage.fromJson(json)).toList();
+}
+
+String _encodeConversations(List<Conversation> conversations) {
+  final jsonList = conversations.map((c) => c.toJson()).toList();
+  return json.encode(jsonList);
+}
+
+String _encodeMessages(List<ChatMessage> messages) {
+  final jsonList = messages.map((m) => m.toJson()).toList();
+  return json.encode(jsonList);
+}
 
 class ConversationStorage {
   static const String _conversationsKey = 'conversations';
@@ -36,8 +58,8 @@ class ConversationStorage {
       final jsonString = prefs.getString(_conversationsKey);
       if (jsonString == null) return [];
 
-      final List<dynamic> jsonList = json.decode(jsonString);
-      return jsonList.map((json) => Conversation.fromJson(json)).toList();
+      // Use compute to parse JSON in background isolate
+      return await compute(_parseConversations, jsonString);
     } catch (e) {
       return [];
     }
@@ -47,8 +69,9 @@ class ConversationStorage {
   Future<void> saveConversations(List<Conversation> conversations) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonList = conversations.map((c) => c.toJson()).toList();
-      await prefs.setString(_conversationsKey, json.encode(jsonList));
+      // Use compute to encode JSON in background isolate
+      final jsonString = await compute(_encodeConversations, conversations);
+      await prefs.setString(_conversationsKey, jsonString);
     } catch (e) {
       // Silent fail
     }
@@ -61,8 +84,8 @@ class ConversationStorage {
       if (!await file.exists()) return [];
 
       final jsonString = await file.readAsString();
-      final List<dynamic> jsonList = json.decode(jsonString);
-      return jsonList.map((json) => ChatMessage.fromJson(json)).toList();
+      // Use compute to parse JSON in background isolate
+      return await compute(_parseMessages, jsonString);
     } catch (e) {
       return [];
     }
@@ -75,8 +98,9 @@ class ConversationStorage {
   ) async {
     try {
       final file = await _getMessagesFile(conversationId);
-      final jsonList = messages.map((m) => m.toJson()).toList();
-      await file.writeAsString(json.encode(jsonList));
+      // Use compute to encode JSON in background isolate
+      final jsonString = await compute(_encodeMessages, messages);
+      await file.writeAsString(jsonString);
     } catch (e) {
       // Silent fail
     }

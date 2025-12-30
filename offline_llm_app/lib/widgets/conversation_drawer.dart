@@ -57,6 +57,9 @@ class ConversationDrawer extends StatelessWidget {
   Widget _buildConversationList(BuildContext context) {
     return Consumer<ConversationProvider>(
       builder: (context, provider, child) {
+        // Trigger lazy loading when drawer is built
+        provider.ensureConversationsLoaded();
+        
         if (provider.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
