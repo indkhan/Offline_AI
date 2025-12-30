@@ -2,10 +2,19 @@
 // State management for conversations
 // Manages conversation list, active conversation, and persistence
 
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/conversation.dart';
 import '../models/chat_message.dart';
 import '../services/conversation_storage.dart';
+
+// Top-level function for compute() - search in messages
+bool _searchInMessages(Map<String, dynamic> params) {
+  final messages = params['messages'] as List<ChatMessage>;
+  final query = params['query'] as String;
+  
+  return messages.any((msg) => msg.content.toLowerCase().contains(query));
+}
 
 class ConversationProvider with ChangeNotifier {
   final ConversationStorage _storage = ConversationStorage();
@@ -16,11 +25,24 @@ class ConversationProvider with ChangeNotifier {
   bool _isLoading = false;
   bool _initialized = false;
 
+  // Search state
+  String _searchQuery = '';
+  List<Conversation> _filteredConversations = [];
+  bool _isSearching = false;
+  Timer? _searchDebounce;
+  final Map<String, List<ChatMessage>> _messageCache = {}; // Cache for search
+
   List<Conversation> get conversations => _conversations ?? [];
   Conversation? get activeConversation => _activeConversation;
   List<ChatMessage> get messages => _messages;
   bool get isLoading => _isLoading;
   bool get hasActiveConversation => _activeConversation != null;
+  
+  // Search getters
+  String get searchQuery => _searchQuery;
+  bool get isSearching => _isSearching;
+  List<Conversation> get displayedConversations => 
+      _searchQuery.isEmpty ? conversations : _filteredConversations;
 
   /// Initialize - lazy load, only create new conversation
   Future<void> initialize() async {
@@ -227,6 +249,112 @@ class ConversationProvider with ChangeNotifier {
     if (_activeConversation != null) {
       await _storage.saveMessages(_activeConversation!.id, _messages);
     }
+  }
+
+  /// Search conversations by title and content
+  void searchConversations(String query) {
+    _searchQuery = query.trim();
+    
+    // Cancel previous debounce timer
+    _searchDebounce?.cancel();
+    
+    if (_searchQuery.isEmpty) {
+      _filteredConversations = [];
+      _isSearching = false;
+      notifyListeners();
+      return;
+    }
+    
+    _isSearching = true;
+    notifyListeners();
+    
+    // Debounce search - wait 300ms after user stops typing
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _performSearch();
+    });
+  }
+  
+  /// Perform the actual search (called after debounce)
+  Future<void> _performSearch() async {
+    await ensureConversationsLoaded();
+    
+    final query = _searchQuery.toLowerCase();
+    final results = <Conversation>[];
+    final contentMatches = <Conversation>[];
+    
+    // Phase 1: Quick title search (instant)
+    for (final conversation in _conversations ?? []) {
+      if (conversation.title.toLowerCase().contains(query)) {
+        results.add(conversation);
+      }
+    }
+    
+    // Update UI with title results immediately
+    _filteredConversations = List.from(results);
+    _isSearching = false;
+    notifyListeners();
+    
+    // Phase 2: Content search in background (non-blocking)
+    _searchInContent(query, results, contentMatches);
+  }
+  
+  /// Search in conversation content (background)
+  Future<void> _searchInContent(
+    String query,
+    List<Conversation> titleMatches,
+    List<Conversation> contentMatches,
+  ) async {
+    for (final conversation in _conversations ?? []) {
+      // Skip if already matched by title
+      if (titleMatches.any((c) => c.id == conversation.id)) continue;
+      
+      // Load messages (with caching)
+      List<ChatMessage> messages;
+      if (_messageCache.containsKey(conversation.id)) {
+        messages = _messageCache[conversation.id]!;
+      } else {
+        messages = await _storage.loadMessages(conversation.id);
+        _messageCache[conversation.id] = messages;
+      }
+      
+      // Search in message content using compute for large message lists
+      if (messages.length > 20) {
+        final hasMatch = await compute(
+          _searchInMessages,
+          {'messages': messages, 'query': query},
+        );
+        if (hasMatch) contentMatches.add(conversation);
+      } else {
+        // Quick search for small lists
+        final hasMatch = messages.any(
+          (msg) => msg.content.toLowerCase().contains(query),
+        );
+        if (hasMatch) contentMatches.add(conversation);
+      }
+      
+      // Update UI progressively as matches are found
+      if (contentMatches.isNotEmpty && _searchQuery == query) {
+        _filteredConversations = [...titleMatches, ...contentMatches];
+        notifyListeners();
+      }
+    }
+  }
+  
+  /// Clear search and show all conversations
+  void clearSearch() {
+    _searchQuery = '';
+    _filteredConversations = [];
+    _isSearching = false;
+    _searchDebounce?.cancel();
+    notifyListeners();
+  }
+  
+  /// Dispose search resources
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _messageCache.clear();
+    super.dispose();
   }
 
   /// Create a new conversation instance

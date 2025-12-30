@@ -12,17 +12,25 @@ class ConversationDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      child: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(context),
-            const Divider(height: 1),
-            Expanded(
-              child: _buildConversationList(context),
-            ),
-          ],
-        ),
+      child: Column(
+        children: [
+          _buildHeader(context),
+          const Divider(height: 1),
+          _buildSearchBar(context),
+          Expanded(
+            child: _buildConversationList(context),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    return Consumer<ConversationProvider>(
+      builder: (context, provider, child) {
+        // Use a stateful wrapper for the text controller
+        return _SearchField(provider: provider);
+      },
     );
   }
 
@@ -64,7 +72,21 @@ class ConversationDrawer extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (provider.conversations.isEmpty) {
+        final displayList = provider.displayedConversations;
+
+        if (displayList.isEmpty && provider.searchQuery.isNotEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'No conversations found',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        }
+
+        if (displayList.isEmpty) {
           return const Center(
             child: Text(
               'No conversations yet',
@@ -74,9 +96,9 @@ class ConversationDrawer extends StatelessWidget {
         }
 
         return ListView.builder(
-          itemCount: provider.conversations.length,
+          itemCount: displayList.length,
           itemBuilder: (context, index) {
-            final conversation = provider.conversations[index];
+            final conversation = displayList[index];
             final isActive = provider.activeConversation?.id == conversation.id;
             return _buildConversationTile(
               context,
@@ -267,5 +289,66 @@ class ConversationDrawer extends StatelessWidget {
     } else {
       return '${timestamp.month}/${timestamp.day}/${timestamp.year}';
     }
+  }
+}
+
+// Stateful search field widget with text controller
+class _SearchField extends StatefulWidget {
+  final ConversationProvider provider;
+  
+  const _SearchField({required this.provider});
+  
+  @override
+  State<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<_SearchField> {
+  final TextEditingController _controller = TextEditingController();
+  
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: TextField(
+        controller: _controller,
+        onChanged: (query) => widget.provider.searchConversations(query),
+        decoration: InputDecoration(
+          hintText: 'Search conversations...',
+          prefixIcon: Icon(
+            widget.provider.isSearching 
+                ? Icons.hourglass_empty 
+                : Icons.search,
+            size: 20,
+          ),
+          suffixIcon: widget.provider.searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, size: 20),
+                  onPressed: () {
+                    _controller.clear();
+                    widget.provider.clearSearch();
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          isDense: true,
+        ),
+        style: const TextStyle(fontSize: 14),
+      ),
+    );
   }
 }
