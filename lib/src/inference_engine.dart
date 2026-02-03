@@ -15,12 +15,15 @@ class InferenceEngine {
     await _scope?.dispose();
     await _parent?.dispose();
     Llama.libraryPath = _libraryPath();
+    final contextParams = ContextParams()..nCtx = 2048;
+    final samplingParams = SamplerParams()
+      ..temp = 0.7
+      ..topP = 0.9;
     final load = LlamaLoad(
       path: path,
       modelParams: ModelParams(),
-      contextParams: ContextParams(nCtx: 2048),
-      samplingParams: SamplerParams(temp: 0.7, topP: 0.9),
-      format: ChatMLFormat(),
+      contextParams: contextParams,
+      samplingParams: samplingParams,
     );
     _parent = LlamaParent(load);
     await _parent!.init();

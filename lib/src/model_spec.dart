@@ -6,7 +6,6 @@ class ModelSpec {
     required this.name,
     required this.url,
     required this.fileName,
-    required this.sha256,
     required this.description,
     required this.sizeLabel,
   });
@@ -15,11 +14,8 @@ class ModelSpec {
   final String name;
   final String url;
   final String fileName;
-  final String? sha256;
   final String description;
   final String sizeLabel;
-
-  bool get hasChecksum => sha256 != null && sha256!.isNotEmpty;
 }
 
 class ModelStatus {
@@ -60,8 +56,6 @@ final List<ModelSpec> kModels = [
     url:
         "https://huggingface.co/ggml-org/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_0.gguf",
     fileName: "Qwen3-0.6B-Q4_0.gguf",
-    sha256:
-        "667ce68a637d8b03679458640977297910e6c3d23edf6b4dc4cbf222e394d5bf",
     description: "Smaller, faster model for on-device chat.",
     sizeLabel: "~0.5 GB",
   ),
@@ -71,7 +65,6 @@ final List<ModelSpec> kModels = [
     url:
         "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/main/LFM2.5-1.2B-Thinking-Q4_0.gguf",
     fileName: "LFM2.5-1.2B-Thinking-Q4_0.gguf",
-    sha256: null,
     description: "Larger model, better reasoning.",
     sizeLabel: "~0.9 GB",
   ),

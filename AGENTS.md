@@ -11,15 +11,14 @@ Design and implement a fully offline AI chat application.
 - Privacy-first: no external network calls during inference
 
 ## Platforms
-- Android: [MIN_ANDROID_VERSION]
-- iOS: [MIN_IOS_VERSION]
-- Framework: [FLUTTER / REACT_NATIVE / NATIVE / DECIDE]
+
+- Framework: React native
 
 ## Model & Inference
 - Supported models:
   - Qwen 0.6B GGUF
   - LFM2.5 1.2B GGUF
-- Inference backend: [LLAMA_CPP / MLC_LLM / DECIDE]
+- Inference backend: [DECIDE]
 the download links are these 
 https://huggingface.co/ggml-org/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_0.gguf
 https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/main/LFM2.5-1.2B-Thinking-Q4_0.gguf
@@ -29,7 +28,7 @@ use these links and they do not even require hf token so use these links to down
 ## Offline Model Management
 - Models are downloaded once and stored locally
 - App must:
-  - Verify checksum
+
   - Show download progress
   - Allow deleting/replacing models
 - No cloud fallback

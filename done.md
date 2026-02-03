@@ -6,9 +6,10 @@
 - Streaming output wiring via `llama_cpp_dart`.
 - Stop generation + clear conversation.
 - Local conversation persistence.
+- Android build script to compile llama.cpp and copy `libllama.so` for emulator.
 
 ## How It Works
-- `lib/src/model_manager.dart` downloads models to app documents and verifies SHA256.
+- `lib/src/model_manager.dart` downloads models to app documents without checksum verification (MVP).
 - `lib/src/inference_engine.dart` loads llama.cpp via `llama_cpp_dart` and streams tokens into the UI.
 - `lib/src/app_controller.dart` coordinates downloads, chat flow, and storage.
 

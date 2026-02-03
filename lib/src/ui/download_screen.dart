@@ -48,8 +48,6 @@ class _ModelCard extends StatelessWidget {
     final status = controller.getModelStatus(spec.id);
     final progress = controller.downloadProgressFor(spec.id);
     final isDownloading = controller.isDownloading(spec.id);
-    final hasChecksum = spec.hasChecksum;
-
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -74,11 +72,6 @@ class _ModelCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(spec.description),
             const SizedBox(height: 12),
-            if (!hasChecksum)
-              const Text(
-                "Checksum missing. Add SHA256 to enable download.",
-                style: TextStyle(color: Colors.orangeAccent),
-              ),
             if (progress != null &&
                 (progress.phase == DownloadPhase.downloading ||
                     progress.phase == DownloadPhase.verifying)) ...[
@@ -94,7 +87,7 @@ class _ModelCard extends StatelessWidget {
               children: [
                 if (!status.isReady)
                   ElevatedButton(
-                    onPressed: (!hasChecksum || isDownloading)
+                    onPressed: isDownloading
                         ? null
                         : () => controller.startDownload(spec.id),
                     child: Text(isDownloading ? "Downloading..." : "Download"),

@@ -1,7 +1,6 @@
 import "dart:async";
 import "dart:io";
 
-import "package:crypto/crypto.dart";
 import "package:dio/dio.dart";
 import "package:path_provider/path_provider.dart";
 
@@ -35,19 +34,6 @@ class ModelManager {
 
   Stream<DownloadProgress> download(ModelSpec spec) {
     final controller = StreamController<DownloadProgress>();
-    if (!spec.hasChecksum) {
-      _lastError[spec.id] = "Missing checksum for ${spec.name}";
-      controller.add(
-        const DownloadProgress(
-          receivedBytes: 0,
-          totalBytes: 0,
-          phase: DownloadPhase.error,
-        ),
-      );
-      controller.close();
-      return controller.stream;
-    }
-
     final tmpPath = "${modelPath(spec)}.partial";
     final tmpFile = File(tmpPath);
     final targetFile = File(modelPath(spec));
@@ -77,26 +63,6 @@ class ModelManager {
             );
           },
         );
-        controller.add(
-          DownloadProgress(
-            receivedBytes: tmpFile.lengthSync(),
-            totalBytes: tmpFile.lengthSync(),
-            phase: DownloadPhase.verifying,
-          ),
-        );
-        final hash = await _sha256File(tmpFile);
-        if (hash != spec.sha256) {
-          _lastError[spec.id] = "Checksum mismatch";
-          await tmpFile.delete();
-          controller.add(
-            const DownloadProgress(
-              receivedBytes: 0,
-              totalBytes: 0,
-              phase: DownloadPhase.error,
-            ),
-          );
-          return;
-        }
         if (await targetFile.exists()) {
           await targetFile.delete();
         }
@@ -131,10 +97,5 @@ class ModelManager {
     if (await file.exists()) {
       await file.delete();
     }
-  }
-
-  Future<String> _sha256File(File file) async {
-    final digest = await sha256.bind(file.openRead()).first;
-    return digest.toString();
   }
 }
