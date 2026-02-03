@@ -1,33 +1,73 @@
-# Repository Guidelines
+# Project: Offline AI Chat App (Android + iOS)
 
-## Project Structure & Module Organization
-This repository is currently a minimal skeleton (only `README.md` and `.gitignore`). As code is added, follow standard Flutter layout and keep this section updated.
-- `lib/` for Dart source (app, services, UI)
-- `test/` for unit/widget tests
-- `integration_test/` for end-to-end tests
-- `android/`, `ios/` for platform shells
-- `assets/` for bundled models, images, and other static files
-- `pubspec.yaml` for dependencies and assets
+## Role
+You are Codex, a senior mobile + ML systems engineer.
+Design and implement a fully offline AI chat application.
 
-## Build, Test, and Development Commands
-Once `pubspec.yaml` exists:
-- `flutter pub get` installs dependencies
-- `flutter run` launches on a device/emulator
-- `flutter test` runs unit/widget tests
-- `flutter analyze` runs static analysis
-- `dart format .` formats all Dart code
+## Core Goals
+- ChatGPT-style UI
+- Works 100% offline after model download
+- Runs local GGUF models (Qwen / LFM2.5)
+- Privacy-first: no external network calls during inference
 
-## Coding Style & Naming Conventions
-Use Dart defaults: 2-space indentation, `lower_snake_case` for file names, `UpperCamelCase` for types, and `lowerCamelCase` for variables/functions. Format with `dart format .` before committing. Platform code should follow Kotlin/Swift conventions when added.
+## Platforms
+- Android: [MIN_ANDROID_VERSION]
+- iOS: [MIN_IOS_VERSION]
+- Framework: [FLUTTER / REACT_NATIVE / NATIVE / DECIDE]
 
-## Testing Guidelines
-Use the Flutter `flutter_test` package for unit/widget tests and `integration_test` for end-to-end flows. Name tests `*_test.dart` and keep them close to the code they cover. There is no explicit coverage target yet; add tests for any user-visible behavior or bug fix.
+## Model & Inference
+- Supported models:
+  - Qwen 0.6B GGUF
+  - LFM2.5 1.2B GGUF
+- Inference backend: [LLAMA_CPP / MLC_LLM / DECIDE]
+the download links are these 
+https://huggingface.co/ggml-org/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_0.gguf
+https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/main/LFM2.5-1.2B-Thinking-Q4_0.gguf
+use these links and they do not even require hf token so use these links to download 
 
-## Commit & Pull Request Guidelines
-Git history uses Conventional Commits (`feat:`, `fix:`, `chore:`). Keep the subject short and scoped, e.g. `feat: add offline model loader`. PRs should include a summary, test results (commands run), and screenshots or screen recordings for UI changes. Link related issues when available.
 
-## Security & Configuration
-Do not commit secrets, signing keys, or local paths. Keep `android/local.properties`, keystore files (`*.jks`), and model binaries out of Git unless explicitly intended and documented.
+## Offline Model Management
+- Models are downloaded once and stored locally
+- App must:
+  - Verify checksum
+  - Show download progress
+  - Allow deleting/replacing models
+- No cloud fallback
 
-## Agent-Specific Instructions
-If automation updates structure or commands, update this file to stay accurate.
+## UI / UX
+- ChatGPT-like interface:
+  - Message bubbles
+  - Streaming token output
+  - Markdown + code block rendering
+- Controls:
+  - Stop generation
+  - Regenerate response
+  - Clear conversation
+- Dark mode by default
+
+## Data Storage
+- Conversations stored locally only
+- No analytics
+- No telemetry
+- No accounts or login
+
+## Architecture
+- Clean architecture
+- Separate layers:
+  - UI
+  - Inference engine
+  - Model manager
+  - Storage
+- Designed for extensibility (future models/features)
+
+## Constraints
+- Must run offline
+- Must be memory-safe
+- Must handle low-memory gracefully
+- Battery-aware inference
+
+## Deliverables
+- Android app
+- iOS app
+- Clear README
+- Build & run instructions
