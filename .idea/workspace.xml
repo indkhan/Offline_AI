@@ -4,17 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="343b79dd-0c09-478d-abb8-3010fc77b5d0" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/done.md" beforeDir="false" afterPath="$PROJECT_DIR$/done.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/src/inference_engine.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/src/inference_engine.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/src/model_manager.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/src/model_manager.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/src/model_spec.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/src/model_spec.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/src/ui/download_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/src/ui/download_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.yaml" afterDir="false" />
-    </list>
+    <list default="true" id="343b79dd-0c09-478d-abb8-3010fc77b5d0" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
