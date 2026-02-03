@@ -71,3 +71,5 @@ use these links and they do not even require hf token so use these links to down
 - iOS app
 - Clear README
 - Build & run instructions
+
+if you make a new plan add it to plan.md and what all is already implemented and how is it implemented have it in done.md 
