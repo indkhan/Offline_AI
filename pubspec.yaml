@@ -1,0 +1,19 @@
+name: offline_ai
+description: Offline AI chat app (MVP).
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.4.3
+  crypto: ^3.0.3
+  path_provider: ^2.1.4
+  flutter_markdown: ^0.7.3+1
+  llama_cpp_dart: ^0.2.2
+
+flutter:
+  uses-material-design: true
