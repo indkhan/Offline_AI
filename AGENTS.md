@@ -14,7 +14,7 @@ Design and implement a fully offline AI chat application.
 
 ## Platforms
 
-Framework: REACT NATIVE 
+Framework: Flutter
 
 
 

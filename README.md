@@ -1,2 +1,5 @@
 # Offline_AI
-An Offline AI application where you can run LLM on you android applications offline
+
+Offline AI chat app for Android + iOS. Runs GGUF models locally with no network calls during inference.
+
+
