@@ -15,7 +15,8 @@ Design and implement a fully offline AI chat application.
 ## Platforms
 
 Framework: Flutter
-use the following [text](https://pub.dev/packages/llama_flutter_android)
+use the following [text](https://pub.dev/packages/llama_flutter_android) https://pub.dev/packages/llama\_flutter\_android
+
 
 
 
@@ -40,7 +41,8 @@ Model \& Inference
 * Models are downloaded once and stored locally
 * App must:
 
-  * Verify checksum
+
+
   * Show download progress
   * Allow deleting/replacing models
 
@@ -91,7 +93,9 @@ Model \& Inference
 ## Deliverables
 
 * Android app
-* iOS app
+
+
+
 * Clear README
 * Build \& run instructions
 
