@@ -15,7 +15,7 @@ Design and implement a fully offline AI chat application.
 ## Platforms
 
 Framework: Flutter
-
+use the following [text](https://pub.dev/packages/llama_flutter_android)
 
 
 
