@@ -19,7 +19,7 @@ class ModelCatalog {
       name: 'Gemma 4 E2B IT',
       description: 'Higher quality. ~2 GB. Needs 4 GB+ free RAM.',
       url:
-          'https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf',
+          'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf',
       fileName: 'gemma-4-E2B-it-Q4_K_M.gguf',
       sizeBytes: 2 * 1024 * 1024 * 1024,
       contextSize: 4096,
