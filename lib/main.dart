@@ -1,3 +1,4 @@
+import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -16,6 +17,13 @@ Future<void> main() async {
       statusBarIconBrightness: Brightness.light,
       systemNavigationBarColor: Color(0xFF212121),
     ),
+  );
+
+  FileDownloader().configureNotification(
+    running: const TaskNotification('Downloading model', '{filename}  {progress}%'),
+    complete: const TaskNotification('Download complete', '{filename}'),
+    error: const TaskNotification('Download failed', '{filename}'),
+    progressBar: true,
   );
 
   final database = AppDatabase();

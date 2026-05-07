@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:dio/dio.dart';
+import 'package:background_downloader/background_downloader.dart' hide Database;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -11,16 +11,12 @@ import '../domain/model_manager_repository.dart';
 
 class ModelManagerRepositoryImpl implements ModelManagerRepository {
   final Database db;
-  final Dio _dio;
-  final Map<String, CancelToken> _active = {};
 
-  ModelManagerRepositoryImpl(this.db) : _dio = Dio();
+  ModelManagerRepositoryImpl(this.db);
 
-  Future<Directory> _modelsDir() async {
+  Future<String> _modelPath(ModelInfo model) async {
     final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(docs.path, 'models'));
-    if (!dir.existsSync()) await dir.create(recursive: true);
-    return dir;
+    return p.join(docs.path, 'models', model.fileName);
   }
 
   @override
@@ -57,59 +53,80 @@ class ModelManagerRepositoryImpl implements ModelManagerRepository {
 
   @override
   Stream<DownloadProgress> download(ModelInfo model) async* {
-    final dir = await _modelsDir();
-    final dest = p.join(dir.path, model.fileName);
-    final part = '$dest.part';
-
-    final cancelToken = CancelToken();
-    _active[model.id] = cancelToken;
-
     final controller = StreamController<DownloadProgress>();
-    unawaited(
-      _dio
-          .download(
-        model.url,
-        part,
-        cancelToken: cancelToken,
-        onReceiveProgress: (r, t) =>
-            controller.add(DownloadProgress(model.id, r, t)),
-        options: Options(
-          receiveTimeout: const Duration(minutes: 30),
-          headers: {'User-Agent': 'OfflineAI/1.0 (Flutter)'},
-        ),
-      )
-          .then((_) async {
-        await File(part).rename(dest);
-        final size = await File(dest).length();
-        await db.insert(
-          'model_installs',
-          {
-            'id': model.id,
-            'slug': model.id,
-            'path': dest,
-            'size_bytes': size,
-            'installed_at': DateTime.now().millisecondsSinceEpoch,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-        controller.add(DownloadProgress(model.id, size, size));
-        await controller.close();
-      }).catchError((e) async {
-        try {
-          if (File(part).existsSync()) await File(part).delete();
-        } catch (_) {}
-        controller.addError(e);
-        await controller.close();
-      }).whenComplete(() => _active.remove(model.id)),
+
+    final task = DownloadTask(
+      taskId: model.id,
+      url: model.url,
+      filename: model.fileName,
+      directory: 'models',
+      baseDirectory: BaseDirectory.applicationDocuments,
+      updates: Updates.statusAndProgress,
+      retries: 3,
+      allowPause: false,
     );
+
+    late StreamSubscription<TaskUpdate> sub;
+    sub = FileDownloader().updates.listen((update) async {
+      if (update.task.taskId != model.id) return;
+
+      if (update is TaskProgressUpdate) {
+        if (!controller.isClosed) {
+          final received =
+              (update.progress * model.sizeBytes).round().clamp(0, model.sizeBytes);
+          controller.add(DownloadProgress(model.id, received, model.sizeBytes));
+        }
+      } else if (update is TaskStatusUpdate) {
+        switch (update.status) {
+          case TaskStatus.complete:
+            final dest = await _modelPath(model);
+            final size =
+                File(dest).existsSync() ? await File(dest).length() : model.sizeBytes;
+            await db.insert(
+              'model_installs',
+              {
+                'id': model.id,
+                'slug': model.id,
+                'path': dest,
+                'size_bytes': size,
+                'installed_at': DateTime.now().millisecondsSinceEpoch,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+            if (!controller.isClosed) {
+              controller.add(DownloadProgress(model.id, size, size));
+              unawaited(controller.close());
+            }
+          case TaskStatus.failed:
+          case TaskStatus.notFound:
+            if (!controller.isClosed) {
+              controller.addError(Exception('Download failed: ${update.status}'));
+              unawaited(controller.close());
+            }
+          case TaskStatus.canceled:
+            if (!controller.isClosed) unawaited(controller.close());
+          default:
+            break;
+        }
+        if (controller.isClosed) unawaited(sub.cancel());
+      }
+    });
+
+    controller.onCancel = () => sub.cancel();
+
+    final enqueued = await FileDownloader().enqueue(task);
+    if (!enqueued) {
+      unawaited(sub.cancel());
+      controller.addError(Exception('Failed to enqueue download'));
+      unawaited(controller.close());
+    }
 
     yield* controller.stream;
   }
 
   @override
   Future<void> cancel(String modelId) async {
-    _active[modelId]?.cancel('user_cancelled');
-    _active.remove(modelId);
+    await FileDownloader().cancelTasksWithIds([modelId]);
   }
 
   @override
