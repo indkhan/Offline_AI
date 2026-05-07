@@ -1,27 +1,18 @@
 import 'package:equatable/equatable.dart';
 
-import '../../model_manager/domain/model_info.dart';
-
 class SettingsState extends Equatable {
-  const SettingsState({
-    required this.selectedModel,
-    required this.offlineGuardEnabled,
-  });
+  final String? selectedModelId;
+  final bool ready;
 
-  const SettingsState.initial()
-    : selectedModel = null,
-      offlineGuardEnabled = true;
+  const SettingsState({this.selectedModelId, this.ready = false});
 
-  final ModelId? selectedModel;
-  final bool offlineGuardEnabled;
-
-  SettingsState copyWith({ModelId? selectedModel, bool? offlineGuardEnabled}) {
+  SettingsState copyWith({String? selectedModelId, bool? ready, bool clearModel = false}) {
     return SettingsState(
-      selectedModel: selectedModel ?? this.selectedModel,
-      offlineGuardEnabled: offlineGuardEnabled ?? this.offlineGuardEnabled,
+      selectedModelId: clearModel ? null : (selectedModelId ?? this.selectedModelId),
+      ready: ready ?? this.ready,
     );
   }
 
   @override
-  List<Object?> get props => [selectedModel, offlineGuardEnabled];
+  List<Object?> get props => [selectedModelId, ready];
 }

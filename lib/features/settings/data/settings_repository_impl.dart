@@ -1,41 +1,25 @@
-import '../../storage/app_database.dart';
-import '../../model_manager/domain/model_info.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../domain/settings_repository.dart';
 
 class SettingsRepositoryImpl implements SettingsRepository {
-  SettingsRepositoryImpl({required AppDatabase database})
-    : _database = database;
-
-  final AppDatabase _database;
+  static const _kSelectedModel = 'selected_model_id';
 
   @override
-  Future<ModelId?> getSelectedModel() async {
-    final raw = await _database.readSetting('selected_model');
-    if (raw == null) {
-      return null;
-    }
-    return ModelId.values.firstWhere(
-      (value) => value.name == raw,
-      orElse: () => ModelId.qwen,
-    );
+  Future<String?> getSelectedModel() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kSelectedModel);
   }
 
   @override
-  Future<bool> isOfflineGuardEnabled() async {
-    final raw = await _database.readSetting('offline_guard');
-    if (raw == null) {
-      return true;
-    }
-    return raw == 'true';
+  Future<void> setSelectedModel(String modelId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kSelectedModel, modelId);
   }
 
   @override
-  Future<void> setOfflineGuardEnabled(bool value) {
-    return _database.upsertSetting('offline_guard', value.toString());
-  }
-
-  @override
-  Future<void> setSelectedModel(ModelId modelId) {
-    return _database.upsertSetting('selected_model', modelId.name);
+  Future<void> clearSelectedModel() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kSelectedModel);
   }
 }

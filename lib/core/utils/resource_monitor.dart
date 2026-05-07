@@ -1,23 +1,25 @@
 import 'dart:io';
 
-class ResourceAdvice {
-  const ResourceAdvice({required this.maxTokens, required this.note});
-
-  final int maxTokens;
-  final String? note;
+class DeviceProfile {
+  final int contextSize;
+  final int numThreads;
+  final int gpuLayers;
+  const DeviceProfile({
+    required this.contextSize,
+    required this.numThreads,
+    required this.gpuLayers,
+  });
 }
 
 class ResourceMonitor {
-  const ResourceMonitor();
-
-  ResourceAdvice currentAdvice() {
-    final processors = Platform.numberOfProcessors;
-    if (processors <= 4) {
-      return const ResourceAdvice(
-        maxTokens: 192,
-        note: 'Low-resource device detected. Generation length reduced.',
-      );
-    }
-    return const ResourceAdvice(maxTokens: 384, note: null);
+  static DeviceProfile pick() {
+    final cores = Platform.numberOfProcessors;
+    final threads = cores >= 6 ? 4 : (cores >= 4 ? 2 : 1);
+    final gpuLayers = Platform.isIOS || Platform.isMacOS ? 99 : 0;
+    return DeviceProfile(
+      contextSize: 4096,
+      numThreads: threads,
+      gpuLayers: gpuLayers,
+    );
   }
 }

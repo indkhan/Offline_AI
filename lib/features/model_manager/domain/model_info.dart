@@ -1,20 +1,43 @@
 import 'package:equatable/equatable.dart';
 
-enum ModelId { qwen, lfm }
-
 class ModelInfo extends Equatable {
+  final String id;
+  final String name;
+  final String description;
+  final String url;
+  final String fileName;
+  final int sizeBytes;
+  final int contextSize;
+
   const ModelInfo({
     required this.id,
-    required this.displayName,
-    required this.filename,
+    required this.name,
+    required this.description,
     required this.url,
+    required this.fileName,
+    required this.sizeBytes,
+    required this.contextSize,
   });
 
-  final ModelId id;
-  final String displayName;
-  final String filename;
-  final String url;
+  @override
+  List<Object?> get props => [id];
+}
+
+class InstalledModel extends Equatable {
+  final String id;
+  final String slug;
+  final String path;
+  final int sizeBytes;
+  final int installedAt;
+
+  const InstalledModel({
+    required this.id,
+    required this.slug,
+    required this.path,
+    required this.sizeBytes,
+    required this.installedAt,
+  });
 
   @override
-  List<Object?> get props => [id, displayName, filename, url];
+  List<Object?> get props => [id, slug, path];
 }

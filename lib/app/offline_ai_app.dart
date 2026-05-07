@@ -12,56 +12,46 @@ import '../features/settings/application/settings_cubit.dart';
 import '../features/settings/domain/settings_repository.dart';
 
 class OfflineAiApp extends StatelessWidget {
-  const OfflineAiApp({
-    required this.chatRepository,
-    required this.inferenceRepository,
-    required this.modelManagerRepository,
-    required this.settingsRepository,
-    super.key,
-  });
+  final ChatRepository chatRepo;
+  final ModelManagerRepository modelRepo;
+  final SettingsRepository settingsRepo;
+  final InferenceRepository inferenceRepo;
 
-  final ChatRepository chatRepository;
-  final InferenceRepository inferenceRepository;
-  final ModelManagerRepository modelManagerRepository;
-  final SettingsRepository settingsRepository;
+  const OfflineAiApp({
+    super.key,
+    required this.chatRepo,
+    required this.modelRepo,
+    required this.settingsRepo,
+    required this.inferenceRepo,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<ChatRepository>.value(value: chatRepository),
-        RepositoryProvider<InferenceRepository>.value(
-          value: inferenceRepository,
-        ),
-        RepositoryProvider<ModelManagerRepository>.value(
-          value: modelManagerRepository,
-        ),
-        RepositoryProvider<SettingsRepository>.value(value: settingsRepository),
+        RepositoryProvider<ChatRepository>.value(value: chatRepo),
+        RepositoryProvider<ModelManagerRepository>.value(value: modelRepo),
+        RepositoryProvider<SettingsRepository>.value(value: settingsRepo),
+        RepositoryProvider<InferenceRepository>.value(value: inferenceRepo),
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider(
-            create: (_) =>
-                SettingsCubit(settingsRepository: settingsRepository)..load(),
-          ),
-          BlocProvider(
-            create: (_) => ModelManagerCubit(
-              modelManagerRepository: modelManagerRepository,
-            )..load(),
-          ),
+          BlocProvider(create: (_) => SettingsCubit(settingsRepo)..load()),
+          BlocProvider(create: (_) => ModelManagerCubit(modelRepo)..load()),
           BlocProvider(
             create: (_) => ChatCubit(
-              chatRepository: chatRepository,
-              inferenceRepository: inferenceRepository,
-              modelManagerRepository: modelManagerRepository,
-              settingsRepository: settingsRepository,
-            )..initialize(),
+              chatRepo: chatRepo,
+              modelRepo: modelRepo,
+              inference: inferenceRepo,
+            ),
           ),
         ],
         child: MaterialApp(
           title: 'Offline AI',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.dark(),
+          darkTheme: AppTheme.dark(),
+          themeMode: ThemeMode.dark,
           home: const ChatScreen(),
         ),
       ),

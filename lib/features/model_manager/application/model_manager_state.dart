@@ -1,54 +1,66 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../core/constants/model_catalog.dart';
 import '../domain/model_info.dart';
 
-enum DownloadStatus { idle, downloading, installed, failed }
+enum ModelStatus { idle, downloading, installed, failed }
 
-class ModelDownloadState extends Equatable {
-  const ModelDownloadState({
-    required this.status,
+class ModelEntry extends Equatable {
+  final ModelInfo info;
+  final ModelStatus status;
+  final double progress;
+  final int receivedBytes;
+  final int totalBytes;
+  final InstalledModel? installed;
+  final String? error;
+
+  const ModelEntry({
+    required this.info,
+    this.status = ModelStatus.idle,
     this.progress = 0,
+    this.receivedBytes = 0,
+    this.totalBytes = 0,
+    this.installed,
     this.error,
-    this.path,
   });
 
-  final DownloadStatus status;
-  final double progress;
-  final String? error;
-  final String? path;
-
-  static const idle = ModelDownloadState(status: DownloadStatus.idle);
+  ModelEntry copyWith({
+    ModelStatus? status,
+    double? progress,
+    int? receivedBytes,
+    int? totalBytes,
+    InstalledModel? installed,
+    String? error,
+    bool clearError = false,
+    bool clearInstalled = false,
+  }) {
+    return ModelEntry(
+      info: info,
+      status: status ?? this.status,
+      progress: progress ?? this.progress,
+      receivedBytes: receivedBytes ?? this.receivedBytes,
+      totalBytes: totalBytes ?? this.totalBytes,
+      installed: clearInstalled ? null : (installed ?? this.installed),
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
 
   @override
-  List<Object?> get props => [status, progress, error, path];
+  List<Object?> get props =>
+      [info.id, status, progress, receivedBytes, totalBytes, installed, error];
 }
 
 class ModelManagerState extends Equatable {
-  const ModelManagerState({required this.models, required this.states});
+  final Map<String, ModelEntry> entries;
+  final bool ready;
 
-  factory ModelManagerState.initial() {
-    return ModelManagerState(
-      models: modelCatalog,
-      states: {
-        for (final model in modelCatalog) model.id: ModelDownloadState.idle,
-      },
-    );
-  }
+  const ModelManagerState({this.entries = const {}, this.ready = false});
 
-  final List<ModelInfo> models;
-  final Map<ModelId, ModelDownloadState> states;
-
-  ModelManagerState copyWith({
-    List<ModelInfo>? models,
-    Map<ModelId, ModelDownloadState>? states,
-  }) {
-    return ModelManagerState(
-      models: models ?? this.models,
-      states: states ?? this.states,
-    );
-  }
+  ModelManagerState copyWith({Map<String, ModelEntry>? entries, bool? ready}) =>
+      ModelManagerState(
+        entries: entries ?? this.entries,
+        ready: ready ?? this.ready,
+      );
 
   @override
-  List<Object?> get props => [models, states];
+  List<Object?> get props => [entries, ready];
 }

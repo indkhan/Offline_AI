@@ -1,26 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 
 import 'app/offline_ai_app.dart';
 import 'features/chat/data/chat_repository_impl.dart';
-import 'features/inference/data/llama_inference_repository.dart';
+import 'features/inference/data/fllama_inference_repository.dart';
 import 'features/model_manager/data/model_manager_repository_impl.dart';
 import 'features/settings/data/settings_repository_impl.dart';
 import 'features/storage/app_database.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  final documentsDir = await getApplicationDocumentsDirectory();
-  final database = AppDatabase(documentsDir.path);
-  await database.open();
-
-  runApp(
-    OfflineAiApp(
-      chatRepository: ChatRepositoryImpl(database: database),
-      inferenceRepository: LlamaInferenceRepository(),
-      modelManagerRepository: ModelManagerRepositoryImpl(database: database),
-      settingsRepository: SettingsRepositoryImpl(database: database),
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Color(0xFF212121),
     ),
   );
+
+  final database = AppDatabase();
+  await database.init();
+
+  final chatRepo = ChatRepositoryImpl(database.db);
+  final modelRepo = ModelManagerRepositoryImpl(database.db);
+  final settingsRepo = SettingsRepositoryImpl();
+  final inferenceRepo = FllamaInferenceRepository();
+
+  runApp(OfflineAiApp(
+    chatRepo: chatRepo,
+    modelRepo: modelRepo,
+    settingsRepo: settingsRepo,
+    inferenceRepo: inferenceRepo,
+  ));
 }

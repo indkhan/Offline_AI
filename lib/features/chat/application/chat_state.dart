@@ -2,54 +2,42 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/chat_message_entity.dart';
 
+enum ChatPhase { idle, loading, streaming, error }
+
 class ChatState extends Equatable {
+  final Conversation? conversation;
+  final List<ChatMessage> messages;
+  final ChatPhase phase;
+  final String? errorMessage;
+  final String? notice;
+
   const ChatState({
-    required this.conversationId,
-    required this.messages,
-    required this.isGenerating,
-    required this.error,
-    required this.systemNotice,
+    this.conversation,
+    this.messages = const [],
+    this.phase = ChatPhase.idle,
+    this.errorMessage,
+    this.notice,
   });
 
-  const ChatState.initial()
-    : conversationId = null,
-      messages = const <ChatMessageEntity>[],
-      isGenerating = false,
-      error = null,
-      systemNotice = null;
-
-  final String? conversationId;
-  final List<ChatMessageEntity> messages;
-  final bool isGenerating;
-  final String? error;
-  final String? systemNotice;
-
   ChatState copyWith({
-    String? conversationId,
-    List<ChatMessageEntity>? messages,
-    bool? isGenerating,
-    String? error,
-    String? systemNotice,
+    Conversation? conversation,
+    List<ChatMessage>? messages,
+    ChatPhase? phase,
+    String? errorMessage,
+    String? notice,
     bool clearError = false,
-    bool clearSystemNotice = false,
+    bool clearNotice = false,
   }) {
     return ChatState(
-      conversationId: conversationId ?? this.conversationId,
+      conversation: conversation ?? this.conversation,
       messages: messages ?? this.messages,
-      isGenerating: isGenerating ?? this.isGenerating,
-      error: clearError ? null : error ?? this.error,
-      systemNotice: clearSystemNotice
-          ? null
-          : systemNotice ?? this.systemNotice,
+      phase: phase ?? this.phase,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      notice: clearNotice ? null : (notice ?? this.notice),
     );
   }
 
   @override
-  List<Object?> get props => [
-    conversationId,
-    messages,
-    isGenerating,
-    error,
-    systemNotice,
-  ];
+  List<Object?> get props =>
+      [conversation, messages, phase, errorMessage, notice];
 }

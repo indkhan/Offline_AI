@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter --version)",
+      "Bash(flutter pub *)",
+      "Bash(find /c/Users/mgsuk/AppData/Local/Pub/Cache -path \"*fllama*\" -name \"*.dart\" 2>/dev/null | head -20)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter test *)",
+      "Read(//c/Users/mgsuk/AppData/Local/Temp/claude/C--codex-Offline-AI/001c5161-9cb6-483c-a5fd-5de5bfaf5315/tasks/**)"
+    ]
+  }
+}
