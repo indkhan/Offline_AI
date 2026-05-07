@@ -12,11 +12,35 @@ import '../domain/model_manager_repository.dart';
 class ModelManagerRepositoryImpl implements ModelManagerRepository {
   final Database db;
 
+  // modelId → unique taskId per attempt (avoids WorkManager ID collisions on retry)
+  final Map<String, String> _taskIds = {};
+  final Map<String, StreamController<DownloadProgress>> _controllers = {};
+
   ModelManagerRepositoryImpl(this.db);
 
   Future<String> _modelPath(ModelInfo model) async {
     final docs = await getApplicationDocumentsDirectory();
     return p.join(docs.path, 'models', model.fileName);
+  }
+
+  // Synchronous — safe to call from inside a callback.
+  void _cleanup(String modelId) {
+    _taskIds.remove(modelId);
+    _controllers.remove(modelId);
+    FileDownloader().unregisterCallbacks(group: modelId);
+  }
+
+  // Full async teardown: cancel WorkManager task, close controller, unregister callbacks.
+  Future<void> _teardown(String modelId) async {
+    final taskId = _taskIds.remove(modelId);
+    final controller = _controllers.remove(modelId);
+    FileDownloader().unregisterCallbacks(group: modelId);
+    if (controller != null && !controller.isClosed) {
+      await controller.close();
+    }
+    if (taskId != null) {
+      await FileDownloader().cancelTasksWithIds([taskId]);
+    }
   }
 
   @override
@@ -53,30 +77,23 @@ class ModelManagerRepositoryImpl implements ModelManagerRepository {
 
   @override
   Stream<DownloadProgress> download(ModelInfo model) async* {
+    // Tear down any in-progress download for this model first.
+    await _teardown(model.id);
+
+    // Unique taskId per attempt so stale canceled events from prior attempt
+    // don't match the new task, even if they arrive late.
+    final taskId = '${model.id}-${DateTime.now().millisecondsSinceEpoch}';
+    _taskIds[model.id] = taskId;
+
     final controller = StreamController<DownloadProgress>();
+    _controllers[model.id] = controller;
 
-    final task = DownloadTask(
-      taskId: model.id,
-      url: model.url,
-      filename: model.fileName,
-      directory: 'models',
-      baseDirectory: BaseDirectory.applicationDocuments,
-      updates: Updates.statusAndProgress,
-      retries: 3,
-      allowPause: false,
-    );
-
-    late StreamSubscription<TaskUpdate> sub;
-    sub = FileDownloader().updates.listen((update) async {
-      if (update.task.taskId != model.id) return;
-
-      if (update is TaskProgressUpdate) {
-        if (!controller.isClosed) {
-          final received =
-              (update.progress * model.sizeBytes).round().clamp(0, model.sizeBytes);
-          controller.add(DownloadProgress(model.id, received, model.sizeBytes));
-        }
-      } else if (update is TaskStatusUpdate) {
+    // Use group = model.id so callbacks are scoped per model, not global.
+    // registerCallbacks replaces .updates.listen() which is single-subscription.
+    FileDownloader().registerCallbacks(
+      group: model.id,
+      taskStatusCallback: (update) async {
+        if (update.task.taskId != taskId) return;
         switch (update.status) {
           case TaskStatus.complete:
             final dest = await _modelPath(model);
@@ -95,30 +112,54 @@ class ModelManagerRepositoryImpl implements ModelManagerRepository {
             );
             if (!controller.isClosed) {
               controller.add(DownloadProgress(model.id, size, size));
-              unawaited(controller.close());
+              await controller.close();
             }
+            _cleanup(model.id);
           case TaskStatus.failed:
           case TaskStatus.notFound:
             if (!controller.isClosed) {
               controller.addError(Exception('Download failed: ${update.status}'));
-              unawaited(controller.close());
+              await controller.close();
             }
+            _cleanup(model.id);
           case TaskStatus.canceled:
-            if (!controller.isClosed) unawaited(controller.close());
+            if (!controller.isClosed) await controller.close();
+            _cleanup(model.id);
           default:
             break;
         }
-        if (controller.isClosed) unawaited(sub.cancel());
-      }
-    });
+      },
+      taskProgressCallback: (update) {
+        if (update.task.taskId != taskId) return;
+        if (!controller.isClosed) {
+          final received =
+              (update.progress * model.sizeBytes).round().clamp(0, model.sizeBytes);
+          controller.add(DownloadProgress(model.id, received, model.sizeBytes));
+        }
+      },
+    );
 
-    controller.onCancel = () => sub.cancel();
+    controller.onCancel = () => _cleanup(model.id);
+
+    final task = DownloadTask(
+      taskId: taskId,
+      url: model.url,
+      filename: model.fileName,
+      directory: 'models',
+      baseDirectory: BaseDirectory.applicationDocuments,
+      group: model.id,
+      updates: Updates.statusAndProgress,
+      retries: 3,
+      allowPause: false,
+    );
 
     final enqueued = await FileDownloader().enqueue(task);
     if (!enqueued) {
-      unawaited(sub.cancel());
-      controller.addError(Exception('Failed to enqueue download'));
-      unawaited(controller.close());
+      _cleanup(model.id);
+      if (!controller.isClosed) {
+        controller.addError(Exception('Failed to enqueue download'));
+        await controller.close();
+      }
     }
 
     yield* controller.stream;
@@ -126,7 +167,7 @@ class ModelManagerRepositoryImpl implements ModelManagerRepository {
 
   @override
   Future<void> cancel(String modelId) async {
-    await FileDownloader().cancelTasksWithIds([modelId]);
+    await _teardown(modelId);
   }
 
   @override
