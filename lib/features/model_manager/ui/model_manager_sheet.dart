@@ -14,7 +14,7 @@ class ModelManagerSheet extends StatelessWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceAlt,
+      backgroundColor: Colors.transparent,
       builder: (_) => const ModelManagerSheet(),
     );
   }
@@ -22,37 +22,54 @@ class ModelManagerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
+      initialChildSize: 0.72,
       minChildSize: 0.4,
       maxChildSize: 0.95,
       expand: false,
-      builder: (_, scroll) => Column(
+      builder: (_, scroll) => Container(
+        decoration: const BoxDecoration(
+          gradient: AppGradients.scaffold,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(
+            top: BorderSide(color: AppColors.borderStrong),
+            left: BorderSide(color: AppColors.border),
+            right: BorderSide(color: AppColors.border),
+          ),
+        ),
+        child: Column(
         children: [
           Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: 36,
+            margin: const EdgeInsets.only(top: 10),
+            width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: AppColors.border,
+              color: AppColors.borderStrong,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                'Models',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              child: ShaderMask(
+                shaderCallback: (r) => AppGradients.accent.createShader(r),
+                child: const Text(
+                  'Models',
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: -0.3),
+                ),
               ),
             ),
           ),
           const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Download once. Runs offline.',
+                'Download once. Runs offline. Private by design.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
             ),
@@ -79,6 +96,7 @@ class ModelManagerSheet extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -95,40 +113,65 @@ class _ModelTile extends StatelessWidget {
     final info = entry.info;
     final mb = (info.sizeBytes / (1024 * 1024)).toStringAsFixed(0);
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        gradient: AppGradients.glassCard,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: selected ? AppColors.accent : AppColors.border,
-          width: selected ? 1.5 : 1,
+          color: selected ? AppColors.violet : AppColors.border,
+          width: selected ? 1.4 : 1,
         ),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: AppColors.violet.withValues(alpha: 0.25),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: selected
+                      ? AppGradients.accent
+                      : AppGradients.glassCard,
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Icon(
+                  Icons.memory_rounded,
+                  size: 18,
+                  color: selected ? Colors.white : AppColors.cyan,
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   info.name,
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary),
                 ),
               ),
               if (selected)
-                const Padding(
-                  padding: EdgeInsets.only(left: 6),
-                  child: Icon(Icons.check_circle, color: AppColors.accent, size: 18),
-                ),
+                const Icon(Icons.check_circle, color: AppColors.violet, size: 20),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             '${info.description}  •  ~$mb MB',
             style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           _StatusRow(entry: entry),
         ],
       ),
@@ -173,11 +216,11 @@ class _StatusRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
                 value: entry.progress > 0 ? entry.progress : null,
-                minHeight: 6,
-                color: AppColors.accent,
+                minHeight: 8,
+                color: AppColors.violet,
                 backgroundColor: AppColors.surfaceAlt,
               ),
             ),
@@ -201,11 +244,13 @@ class _StatusRow extends StatelessWidget {
           children: [
             ElevatedButton.icon(
               onPressed: isSelected ? null : () => settings.select(entry.info.id),
-              icon: Icon(isSelected ? Icons.check : Icons.bolt, size: 18),
+              icon: Icon(isSelected ? Icons.check : Icons.bolt_rounded, size: 18),
               label: Text(isSelected ? 'Selected' : 'Use this'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isSelected ? AppColors.surfaceAlt : AppColors.accent,
+                backgroundColor: isSelected ? AppColors.surfaceHi : AppColors.violet,
                 foregroundColor: isSelected ? AppColors.textSecondary : Colors.white,
+                disabledBackgroundColor: AppColors.surfaceHi,
+                disabledForegroundColor: AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: 10),
